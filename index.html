@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#16181d" />
+  <title>Session Scheduler</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏰</text></svg>" />
+</head>
+<body>
+  <header>
+    <h1>Session Scheduler</h1>
+    <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙️</button>
+  </header>
+
+  <main>
+    <section id="status-card" class="card" hidden>
+      <div class="status-row">
+        <span id="health-dot" class="dot"></span>
+        <span id="health-text">Checking…</span>
+      </div>
+      <div class="status-detail" id="last-ping">Last ping: —</div>
+      <div class="status-detail" id="next-slot">Next start: —</div>
+      <a id="run-link" href="#" target="_blank" rel="noopener" hidden>View failed run →</a>
+    </section>
+
+    <button id="start-now" class="primary-btn" hidden>▶ Start window now</button>
+
+    <section id="slots-card" class="card" hidden>
+      <h2>Start times <span class="tz-note">(Europe/Zagreb)</span></h2>
+      <ul id="slot-list"></ul>
+      <div class="add-row">
+        <input type="time" id="new-time" />
+        <button id="add-slot" class="secondary-btn">+ Add</button>
+      </div>
+    </section>
+
+    <section id="setup-card" class="card" hidden>
+      <h2>Setup</h2>
+      <p class="hint">Stored only in this browser's localStorage. See the README for how to create the token.</p>
+      <label>GitHub owner
+        <input type="text" id="cfg-owner" autocapitalize="none" autocorrect="off" placeholder="your-username" />
+      </label>
+      <label>Repository
+        <input type="text" id="cfg-repo" autocapitalize="none" autocorrect="off" placeholder="session-scheduler" />
+      </label>
+      <label>Branch
+        <input type="text" id="cfg-branch" autocapitalize="none" autocorrect="off" placeholder="main" />
+      </label>
+      <label>Fine-grained PAT
+        <input type="password" id="cfg-pat" placeholder="github_pat_…" />
+      </label>
+      <button id="save-cfg" class="primary-btn">Save</button>
+    </section>
+  </main>
+
+  <div id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
