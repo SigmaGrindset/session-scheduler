@@ -1,8 +1,10 @@
 {
-  "fired": {},
+  "fired": {
+    "18:30": "2026-07-20"
+  },
   "lastPing": {
-    "at": "2026-07-20T11:29:42.601Z",
-    "slot": null,
-    "trigger": "manual"
+    "at": "2026-07-20T17:01:52.074Z",
+    "slot": "18:30",
+    "trigger": "schedule"
   }
 }
