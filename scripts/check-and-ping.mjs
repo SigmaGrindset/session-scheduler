@@ -85,13 +85,13 @@ if (DRY_RUN) {
   process.exit(0);
 }
 
-// After the ping starts the window, read Claude's unified rate-limit headers so
-// the UI can show the exact 5-hour/weekly reset times and utilization. This is
-// an undocumented header set and best-effort: a failure here never fails the
-// ping, and the previous snapshot is kept.
-const USAGE_MODEL = "claude-haiku-4-5";
+// After the ping starts the window, read Claude's unified rate-limit header to
+// capture the exact 5-hour window reset time for the UI. Undocumented header,
+// best-effort: a failure here never fails the ping, and the previous value is
+// kept.
+const WINDOW_MODEL = "claude-haiku-4-5";
 
-async function readUsage(token) {
+async function readWindow(token) {
   if (!token) throw new Error("no CLAUDE_CODE_OAUTH_TOKEN");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -103,43 +103,23 @@ async function readUsage(token) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: USAGE_MODEL,
+      model: WINDOW_MODEL,
       max_tokens: 1,
       messages: [{ role: "user", content: "hi" }],
     }),
   });
 
-  const num = (name) => {
-    const v = res.headers.get(name);
-    if (v == null) return null;
-    const n = Number(v);
-    return Number.isNaN(n) ? null : n;
-  };
-  const parseWindow = (prefix) => {
-    const reset = num(`anthropic-ratelimit-unified-${prefix}-reset`);
-    const utilization = num(`anthropic-ratelimit-unified-${prefix}-utilization`);
-    if (reset == null && utilization == null) return null;
-    return {
-      resetsAt: reset == null ? null : new Date(reset * 1000).toISOString(),
-      utilization,
-    };
-  };
-
-  const fiveHour = parseWindow("5h");
-  const sevenDay = parseWindow("7d");
-  if (!fiveHour && !sevenDay) {
-    throw new Error(`no rate-limit headers (HTTP ${res.status})`);
+  const reset = Number(res.headers.get("anthropic-ratelimit-unified-5h-reset"));
+  if (!Number.isFinite(reset)) {
+    throw new Error(`no 5h-reset header (HTTP ${res.status})`);
   }
-
-  const snapshot = { at: new Date().toISOString() };
-  const claim = res.headers.get("anthropic-ratelimit-unified-representative-claim");
-  if (claim) snapshot.representativeClaim = claim;
-  if (fiveHour) snapshot.fiveHour = fiveHour;
-  if (sevenDay) snapshot.sevenDay = sevenDay;
-  return snapshot;
+  return {
+    readAt: new Date().toISOString(),
+    resetsAt: new Date(reset * 1000).toISOString(),
+  };
 }
 
-let usage = null;
+let win = null;
 
 if (process.env.SWS_SKIP_PING === "1") {
   console.log("Ping skipped (SWS_SKIP_PING=1).");
@@ -157,18 +137,12 @@ if (process.env.SWS_SKIP_PING === "1") {
     process.exit(1);
   }
 
-  // The ping just started (or refreshed) the window; read its reset + usage.
-  usage = await readUsage(process.env.CLAUDE_CODE_OAUTH_TOKEN).catch((err) => {
-    console.error(`Usage read failed (non-fatal): ${err.message}`);
+  // The ping just started (or refreshed) the window; capture its reset time.
+  win = await readWindow(process.env.CLAUDE_CODE_OAUTH_TOKEN).catch((err) => {
+    console.error(`Window read failed (non-fatal): ${err.message}`);
     return null;
   });
-  if (usage) {
-    const pct = (w) => (w?.utilization == null ? "?" : `${Math.round(w.utilization * 100)}%`);
-    console.log(
-      `Usage: 5h ${pct(usage.fiveHour)} used, resets ${usage.fiveHour?.resetsAt ?? "?"};` +
-        ` weekly ${pct(usage.sevenDay)} used.`,
-    );
-  }
+  if (win) console.log(`5-hour window resets ${win.resetsAt}`);
 }
 
 // Record the ping. Entries from previous days are pruned; the guard only
@@ -188,9 +162,9 @@ const newState = {
   },
 };
 
-// Keep the previous usage snapshot if this run couldn't read a fresh one.
-const finalUsage = usage ?? state.usage;
-if (finalUsage) newState.usage = finalUsage;
+// Keep the previous window reset if this run couldn't read a fresh one.
+const finalWindow = win ?? state.window;
+if (finalWindow) newState.window = finalWindow;
 
 writeFileSync("state.json", JSON.stringify(newState, null, 2) + "\n");
 console.log("state.json updated.");

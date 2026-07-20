@@ -97,12 +97,12 @@ PAT → Save. Add your start times; toggle or delete them any time.
   regardless of the schedule.
 - **Health**: the status card shows the last ping time and turns yellow if no
   workflow run happened in 24h, red if the latest run failed (with a link).
-- **Usage / reset time**: after a ping, the workflow makes one extra minimal
-  request and reads Claude's `anthropic-ratelimit-unified-*` response headers,
-  recording the exact 5-hour and weekly window reset times and utilization into
-  `state.json`. The UI shows a live countdown to the 5-hour reset and usage
-  meters. (These headers are undocumented; the read is best-effort and never
-  fails the ping.)
+- **5-hour window reset**: after a ping, the workflow makes one extra minimal
+  request and reads Claude's `anthropic-ratelimit-unified-5h-reset` response
+  header, recording the exact reset time of the current 5-hour usage window into
+  `state.json`. The UI shows a live countdown to it (and "no active window" once
+  it elapses). The header is undocumented; the read is best-effort and never
+  fails the ping.
 - **Cron auto-disable**: GitHub disables scheduled workflows after 60 days
   without repo activity. The workflow's own `state.json` commits count as
   activity, so normal use keeps it alive; if you stop using it for two months,

@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id);
 let cfg = loadCfg();
 let schedule = null;
 let scheduleSha = null;
-let usage = null; // latest usage snapshot from state.json, or null
+let windowResetsAt = null; // ISO reset time of the current 5-hour window, or null
 
 function loadCfg() {
   try {
@@ -120,45 +120,16 @@ function fmtCountdown(ms) {
 // resetsAt timestamp so it stays accurate between the workflow's 5-min runs.
 function renderWindowReset() {
   const el = $("window-reset");
-  const resetsAt = usage?.fiveHour?.resetsAt;
-  if (!resetsAt) {
+  if (!windowResetsAt) {
     el.textContent = "5-hour window: —";
     return;
   }
-  const ms = new Date(resetsAt).getTime() - Date.now();
+  const ms = new Date(windowResetsAt).getTime() - Date.now();
   if (ms <= 0) {
     el.textContent = "5-hour window: no active window";
     return;
   }
-  el.textContent = `5-hour window resets: ${fmtZagrebTime(resetsAt)} · in ${fmtCountdown(ms)}`;
-}
-
-function renderMeter(fillId, pctId, utilization) {
-  const fill = $(fillId);
-  const pct = $(pctId);
-  const u = typeof utilization === "number" ? Math.max(0, Math.min(1, utilization)) : null;
-  if (u === null) {
-    fill.style.width = "0%";
-    fill.className = "meter-fill";
-    pct.textContent = "—";
-    return;
-  }
-  const percent = Math.round(u * 100);
-  fill.style.width = `${percent}%`;
-  fill.className = "meter-fill" + (u >= 0.9 ? " high" : u >= 0.7 ? " mid" : "");
-  pct.textContent = `${percent}%`;
-}
-
-function renderUsage() {
-  renderWindowReset();
-  const bars = $("usage-bars");
-  if (!usage || (!usage.fiveHour && !usage.sevenDay)) {
-    bars.hidden = true;
-    return;
-  }
-  bars.hidden = false;
-  renderMeter("meter-5h", "pct-5h", usage.fiveHour?.utilization);
-  renderMeter("meter-7d", "pct-7d", usage.sevenDay?.utilization);
+  el.textContent = `5-hour window resets: ${fmtZagrebTime(windowResetsAt)} · in ${fmtCountdown(ms)}`;
 }
 
 function nowInZagrebMinutes() {
@@ -235,8 +206,8 @@ async function refreshStatus() {
     $("last-ping").textContent = state.lastPing
       ? `Last ping: ${fmtZagreb(state.lastPing.at)} (${state.lastPing.trigger})`
       : "Last ping: never";
-    usage = state.usage || null;
-    renderUsage();
+    windowResetsAt = state.window?.resetsAt || null;
+    renderWindowReset();
   } catch {
     $("last-ping").textContent = "Last ping: unknown";
   }
