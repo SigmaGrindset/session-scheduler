@@ -3,20 +3,12 @@
     "18:30": "2026-07-20"
   },
   "lastPing": {
-    "at": "2026-07-20T18:30:35.736Z",
+    "at": "2026-07-20T18:52:41.119Z",
     "slot": null,
     "trigger": "manual"
   },
-  "usage": {
-    "at": "2026-07-20T18:30:35.736Z",
-    "representativeClaim": "five_hour",
-    "fiveHour": {
-      "resetsAt": "2026-07-20T22:00:00.000Z",
-      "utilization": 0.46
-    },
-    "sevenDay": {
-      "resetsAt": "2026-07-26T18:00:00.000Z",
-      "utilization": 0.1
-    }
+  "window": {
+    "readAt": "2026-07-20T18:52:41.119Z",
+    "resetsAt": "2026-07-20T22:00:00.000Z"
   }
 }
