@@ -1,4 +1,10 @@
 {
   "timezone": "Europe/Zagreb",
-  "slots": []
+  "slots": [
+    {
+      "id": "r65sng",
+      "time": "18:30",
+      "enabled": true
+    }
+  ]
 }
