@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 let cfg = loadCfg();
 let schedule = null;
 let scheduleSha = null;
+let usage = null; // latest usage snapshot from state.json, or null
 
 function loadCfg() {
   try {
@@ -97,6 +98,69 @@ function fmtZagreb(iso) {
   });
 }
 
+function fmtZagrebTime(iso) {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+function fmtCountdown(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${m}m ${s}s`;
+}
+
+// Live countdown to the current 5-hour window's reset. Driven off the absolute
+// resetsAt timestamp so it stays accurate between the workflow's 5-min runs.
+function renderWindowReset() {
+  const el = $("window-reset");
+  const resetsAt = usage?.fiveHour?.resetsAt;
+  if (!resetsAt) {
+    el.textContent = "5-hour window: —";
+    return;
+  }
+  const ms = new Date(resetsAt).getTime() - Date.now();
+  if (ms <= 0) {
+    el.textContent = "5-hour window: no active window";
+    return;
+  }
+  el.textContent = `5-hour window resets: ${fmtZagrebTime(resetsAt)} · in ${fmtCountdown(ms)}`;
+}
+
+function renderMeter(fillId, pctId, utilization) {
+  const fill = $(fillId);
+  const pct = $(pctId);
+  const u = typeof utilization === "number" ? Math.max(0, Math.min(1, utilization)) : null;
+  if (u === null) {
+    fill.style.width = "0%";
+    fill.className = "meter-fill";
+    pct.textContent = "—";
+    return;
+  }
+  const percent = Math.round(u * 100);
+  fill.style.width = `${percent}%`;
+  fill.className = "meter-fill" + (u >= 0.9 ? " high" : u >= 0.7 ? " mid" : "");
+  pct.textContent = `${percent}%`;
+}
+
+function renderUsage() {
+  renderWindowReset();
+  const bars = $("usage-bars");
+  if (!usage || (!usage.fiveHour && !usage.sevenDay)) {
+    bars.hidden = true;
+    return;
+  }
+  bars.hidden = false;
+  renderMeter("meter-5h", "pct-5h", usage.fiveHour?.utilization);
+  renderMeter("meter-7d", "pct-7d", usage.sevenDay?.utilization);
+}
+
 function nowInZagrebMinutes() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: TZ,
@@ -171,6 +235,8 @@ async function refreshStatus() {
     $("last-ping").textContent = state.lastPing
       ? `Last ping: ${fmtZagreb(state.lastPing.at)} (${state.lastPing.trigger})`
       : "Last ping: never";
+    usage = state.usage || null;
+    renderUsage();
   } catch {
     $("last-ping").textContent = "Last ping: unknown";
   }
@@ -323,5 +389,8 @@ $("start-now").addEventListener("click", startNow);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && cfg && schedule) refreshStatus();
 });
+
+// Keep the window-reset countdown live between status refreshes.
+setInterval(renderWindowReset, 1000);
 
 init();

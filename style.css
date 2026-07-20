@@ -150,6 +150,54 @@ main {
   font-size: 0.9rem;
 }
 
+/* Usage meters */
+.usage-bars {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.usage-label {
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.meter {
+  flex: 1;
+  height: 8px;
+  background: var(--card-border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--green);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.meter-fill.mid { background: var(--yellow); }
+.meter-fill.high { background: var(--red); }
+
+.usage-pct {
+  width: 34px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Slots */
 #slot-list {
   list-style: none;
