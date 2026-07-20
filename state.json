@@ -3,8 +3,20 @@
     "18:30": "2026-07-20"
   },
   "lastPing": {
-    "at": "2026-07-20T17:01:52.074Z",
-    "slot": "18:30",
-    "trigger": "schedule"
+    "at": "2026-07-20T18:30:35.736Z",
+    "slot": null,
+    "trigger": "manual"
+  },
+  "usage": {
+    "at": "2026-07-20T18:30:35.736Z",
+    "representativeClaim": "five_hour",
+    "fiveHour": {
+      "resetsAt": "2026-07-20T22:00:00.000Z",
+      "utilization": 0.46
+    },
+    "sevenDay": {
+      "resetsAt": "2026-07-26T18:00:00.000Z",
+      "utilization": 0.1
+    }
   }
 }
