@@ -4,6 +4,11 @@
   padding: 0;
 }
 
+/* The `hidden` attribute must win over element display rules (e.g. #run-link). */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --bg: #16181d;
   --card: #1f232b;
