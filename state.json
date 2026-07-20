@@ -1,4 +1,8 @@
 {
   "fired": {},
-  "lastPing": null
+  "lastPing": {
+    "at": "2026-07-20T11:21:59.054Z",
+    "slot": null,
+    "trigger": "manual"
+  }
 }
