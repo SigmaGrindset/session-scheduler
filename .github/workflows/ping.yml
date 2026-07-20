@@ -2,7 +2,9 @@ name: ping
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Every 5 min, offset off the congested round minutes (:00/:15/:30/:45)
+    # where GitHub's scheduled-cron queue is slowest.
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:
 
 permissions:
