@@ -5,6 +5,11 @@
       "id": "07bcmz",
       "time": "08:00",
       "enabled": true
+    },
+    {
+      "id": "hacqwo",
+      "time": "13:00",
+      "enabled": true
     }
   ]
 }
