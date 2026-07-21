@@ -10,6 +10,11 @@
       "id": "hacqwo",
       "time": "13:00",
       "enabled": true
+    },
+    {
+      "id": "pi1ios",
+      "time": "18:00",
+      "enabled": true
     }
   ]
 }
