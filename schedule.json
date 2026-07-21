@@ -1,10 +1,4 @@
 {
   "timezone": "Europe/Zagreb",
-  "slots": [
-    {
-      "id": "uk8ael",
-      "time": "18:00",
-      "enabled": true
-    }
-  ]
+  "slots": []
 }
