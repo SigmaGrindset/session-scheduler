@@ -1,0 +1,28 @@
+name: probe-window
+
+# Manual only. Reports which cheap endpoints return the undocumented
+# anthropic-ratelimit-unified-5h-reset header, to find out whether the app can
+# detect a window that was started outside this repo. Sends no inference request
+# and writes nothing.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Probe rate-limit headers
+        run: node scripts/probe-window.mjs
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

@@ -3,60 +3,191 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#16181d" />
+  <meta name="theme-color" content="#14120f" />
+
   <title>Session Scheduler</title>
+  <meta name="description" content="Plan when your Claude 5-hour usage windows begin, and watch the current one run down." />
+  <meta property="og:title" content="Session Scheduler" />
+  <meta property="og:description" content="Plan when your Claude 5-hour usage windows begin, and watch the current one run down." />
+  <meta property="og:type" content="website" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Sessions" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314120f'/%3E%3Ccircle cx='16' cy='16' r='9.25' fill='none' stroke='%23e08a4e' stroke-width='2.25'/%3E%3Cpath d='M16 10.75V16l3.5 2.25' fill='none' stroke='%23e08a4e' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314120f'/%3E%3Ccircle cx='16' cy='16' r='9.25' fill='none' stroke='%23e08a4e' stroke-width='2.25'/%3E%3Cpath d='M16 10.75V16l3.5 2.25' fill='none' stroke='%23e08a4e' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" />
   <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏰</text></svg>" />
 </head>
-<body>
-  <header>
-    <h1>Session Scheduler</h1>
-    <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙️</button>
+<body data-view="loading">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="9.25" fill="none" stroke="currentColor" stroke-width="2.25" />
+        <path d="M16 10.75V16l3.5 2.25" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <h1>Session Scheduler</h1>
+    </div>
+
+    <div class="topbar__right">
+      <a id="health" class="health" data-state="unknown" target="_blank" rel="noopener">
+        <span class="health__dot" aria-hidden="true"></span>
+        <span id="health-text">checking</span>
+      </a>
+      <button id="settings-btn" class="icon-btn" type="button" aria-label="Settings" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 7h9M18 7h1M5 12h3M12 12h7M5 17h9M18 17h1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <circle cx="16" cy="7" r="2.1" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="10" cy="12" r="2.1" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="16" cy="17" r="2.1" fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </button>
+    </div>
   </header>
 
-  <main>
-    <section id="status-card" class="card" hidden>
-      <div class="status-row">
-        <span id="health-dot" class="dot"></span>
-        <span id="health-text">Checking…</span>
-      </div>
-      <div class="status-detail" id="last-ping">Last ping: —</div>
-      <div class="status-detail" id="window-reset">5-hour window: —</div>
-      <div class="status-detail" id="next-slot">Next start: —</div>
-      <a id="run-link" href="#" target="_blank" rel="noopener" hidden>View failed run →</a>
-    </section>
-
-    <button id="start-now" class="primary-btn" hidden>▶ Start window now</button>
-
-    <section id="slots-card" class="card" hidden>
-      <h2>Start times <span class="tz-note">(Europe/Zagreb)</span></h2>
-      <ul id="slot-list"></ul>
-      <div class="add-row">
-        <input type="time" id="new-time" />
-        <button id="add-slot" class="secondary-btn">+ Add</button>
+  <main id="main">
+    <section id="fault" class="fault" hidden>
+      <h2>Could not load your schedule</h2>
+      <p id="fault-msg">GitHub did not answer.</p>
+      <div class="fault__actions">
+        <button id="fault-retry" class="btn btn--quiet" type="button">Try again</button>
+        <button id="fault-settings" class="btn btn--text" type="button">Check settings</button>
       </div>
     </section>
 
-    <section id="setup-card" class="card" hidden>
-      <h2>Setup</h2>
-      <p class="hint">Stored only in this browser's localStorage. See the README for how to create the token.</p>
-      <label>GitHub owner
-        <input type="text" id="cfg-owner" autocapitalize="none" autocorrect="off" placeholder="your-username" />
-      </label>
-      <label>Repository
-        <input type="text" id="cfg-repo" autocapitalize="none" autocorrect="off" placeholder="session-scheduler" />
-      </label>
-      <label>Branch
-        <input type="text" id="cfg-branch" autocapitalize="none" autocorrect="off" placeholder="main" />
-      </label>
-      <label>Fine-grained PAT
-        <input type="password" id="cfg-pat" placeholder="github_pat_…" />
-      </label>
-      <button id="save-cfg" class="primary-btn">Save</button>
-    </section>
+    <div class="columns">
+      <section class="hero" aria-labelledby="hero-label">
+        <div class="hero__glow" aria-hidden="true"></div>
+
+        <p class="eyebrow" id="hero-label">current 5-hour window</p>
+        <p class="hero__value"><span id="hero-count">&mdash;:&mdash;&mdash;</span></p>
+        <p class="hero__sub" id="hero-sub">No window running yet</p>
+
+        <div class="gauge" id="gauge" role="img" aria-label="Window progress">
+          <div class="gauge__fill" id="gauge-fill"></div>
+        </div>
+        <div class="gauge__legend">
+          <span id="gauge-start">&mdash;</span>
+          <span id="gauge-end">&mdash;</span>
+        </div>
+
+        <button id="start-now" class="btn btn--primary" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" /></svg>
+          <span id="start-now-label">Start window now</span>
+        </button>
+
+        <dl class="stats">
+          <div class="stat">
+            <dt>next start</dt>
+            <dd id="stat-next">&mdash;</dd>
+          </div>
+          <div class="stat">
+            <dt>last ping</dt>
+            <dd id="stat-ping">&mdash;</dd>
+          </div>
+        </dl>
+      </section>
+
+      <div class="stack">
+        <section class="panel" aria-labelledby="day-label">
+          <div class="panel__head">
+            <h2 id="day-label">Today</h2>
+            <span class="panel__meta" id="now-label">&mdash;</span>
+          </div>
+
+          <div class="track" id="track" role="img" aria-label="Day rail">
+            <div class="track__band" id="track-band" hidden></div>
+            <div class="track__band" id="track-band-2" hidden></div>
+            <div class="track__marks" id="track-marks"></div>
+            <div class="track__now" id="track-now" hidden><span class="track__now-dot"></span></div>
+          </div>
+
+          <div class="scale" aria-hidden="true">
+            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="slots-label">
+          <div class="panel__head">
+            <h2 id="slots-label">Start times</h2>
+            <span class="panel__meta">Europe/Zagreb</span>
+          </div>
+
+          <ul id="slot-list" class="slots"></ul>
+
+          <div id="slot-empty" class="empty" hidden>
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 5" />
+              <path d="M24 16.5V24l5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <p class="empty__title">Nothing scheduled</p>
+            <p class="empty__body">Add a start time and the workflow opens a window for you at that hour. Two or three spread across the day usually covers it.</p>
+          </div>
+
+          <form id="add-form" class="add" novalidate>
+            <label class="sr-only" for="new-time">New start time</label>
+            <input type="time" id="new-time" />
+            <button id="add-slot" class="btn btn--quiet" type="submit">Add time</button>
+          </form>
+          <p class="field-error" id="add-error" hidden></p>
+        </section>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span>A window runs 5 hours from its first ping.</span>
+      <a id="actions-link" href="https://github.com/features/actions" target="_blank" rel="noopener">Workflow runs</a>
+    </footer>
   </main>
 
-  <div id="toast" hidden></div>
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+
+  <aside class="sheet" id="setup-sheet" role="dialog" aria-modal="true" aria-labelledby="setup-title" hidden>
+    <div class="sheet__head">
+      <h2 id="setup-title">Connection</h2>
+      <button id="close-setup" class="icon-btn" type="button" aria-label="Close settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+      </button>
+    </div>
+
+    <form id="setup-form" class="sheet__body">
+      <p class="note">The token stays in this browser localStorage and is sent only to api.github.com. The README covers how to create one.</p>
+
+      <label class="field">
+        <span>GitHub owner</span>
+        <input type="text" id="cfg-owner" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="antoniob" />
+      </label>
+
+      <label class="field">
+        <span>Repository</span>
+        <input type="text" id="cfg-repo" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="session-scheduler" />
+      </label>
+
+      <label class="field">
+        <span>Branch</span>
+        <input type="text" id="cfg-branch" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="main" />
+      </label>
+
+      <label class="field">
+        <span>Fine-grained token <em id="pat-hint" hidden>saved &middot; leave blank to keep it</em></span>
+        <input type="password" id="cfg-pat" autocomplete="off" placeholder="github_pat_…" />
+      </label>
+
+      <p class="field-error" id="cfg-error" hidden></p>
+
+      <button id="save-cfg" class="btn btn--primary" type="submit">Save and connect</button>
+    </form>
+  </aside>
+
+  <div id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>
 </body>

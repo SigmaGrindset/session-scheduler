@@ -1,7 +1,7 @@
 # Claude Session Window Scheduler
 
 Schedule when your Claude Pro 5-hour usage windows begin. You set start times
-in a small mobile-friendly web UI; at those times a GitHub Actions workflow
+in a small mobile-first web UI; at those times a GitHub Actions workflow
 sends a minimal one-shot prompt through Claude Code (using your Pro
 subscription), which starts the window — so it's already running when you sit
 down to work.
@@ -86,22 +86,28 @@ commits, so the every-15-minutes bot activity doesn't churn deployments.
 
 ### 5. Configure the UI
 
-Open the deployed page → enter GitHub owner, repo, branch (`main`) and the
-PAT → Save. Add your start times; toggle or delete them any time.
+Open the deployed page. The settings panel opens on first load: enter GitHub
+owner, repo, branch (`main`) and the PAT, then **Save and connect**. Add your
+start times; toggle or delete them any time. Reopen the panel from the icon in
+the top right.
 
 ## Notes
 
 - **Timezone**: all times are Europe/Zagreb (set in `schedule.json`;
   DST handled automatically).
-- **Manual start**: the ▶ button dispatches the workflow immediately,
+- **Manual start**: **Start window now** dispatches the workflow immediately,
   regardless of the schedule.
-- **Health**: the status card shows the last ping time and turns yellow if no
-  workflow run happened in 24h, red if the latest run failed (with a link).
+- **Health**: the pill in the header reads *healthy*, turns amber if no workflow
+  run happened in 24h, and turns red and links to the run when the latest one
+  failed.
+- **Day rail**: the *Today* panel plots the enabled start times, the running
+  window and the current time across 24 hours, so gaps in the day are obvious.
 - **5-hour window reset**: after a ping, the workflow makes one extra minimal
   request and reads Claude's `anthropic-ratelimit-unified-5h-reset` response
   header, recording the exact reset time of the current 5-hour usage window into
-  `state.json`. The UI shows a live countdown to it (and "no active window" once
-  it elapses). The header is undocumented; the read is best-effort and never
+  `state.json`. The countdown at the top of the UI runs against it, with a meter
+  showing how much of the 5 hours is spent; it falls back to "no window" once the
+  window elapses. The header is undocumented; the read is best-effort and never
   fails the ping.
 - **Cron auto-disable**: GitHub disables scheduled workflows after 60 days
   without repo activity. The workflow's own `state.json` commits count as
@@ -111,3 +117,39 @@ PAT → Save. Add your start times; toggle or delete them any time.
   `node scripts/check-and-ping.mjs --dry-run` (optionally with
   `SWS_FAKE_NOW=2026-07-19T06:10:00Z`) prints the firing decision without
   pinging or writing anything.
+- **Previewing the UI**: `node scripts/serve.mjs` serves the page on
+  <http://localhost:4321>. Adding `?demo` (also `?demo=empty`, `?demo=sheet`)
+  renders sample data with no GitHub calls — it only works on localhost, so
+  the deployed page is unaffected.
+
+## Detecting windows started elsewhere
+
+The UI only knows about windows this repo started. If you open a window yourself
+— Claude Code on your laptop, the app, the web — the countdown keeps saying
+"no window" until the next scheduled ping happens to land inside it.
+
+That is not an oversight in the UI: the exact reset time is only ever returned
+in the `anthropic-ratelimit-unified-5h-reset` response header, and a normal
+`/v1/messages` request **starts a window if none is running**. So the schedule
+cannot simply poll for "is a window open?" — on a quiet afternoon the poll
+itself would open one, which is the opposite of the point.
+
+Automatic detection is therefore possible only if some endpoint returns that
+header *without* running inference. Run the **probe-window** workflow
+(Actions → probe-window → Run workflow) to find out. It sends no inference
+request and writes nothing; it just prints the `anthropic-*` headers returned by
+`count_tokens`, a rejected request, and `GET /v1/models`.
+
+Read the result like this:
+
+- **A probe returns the header, and running it while no window is open does not
+  create one** → poll that endpoint from the 5-minute cron and record `window`
+  in `state.json`. The UI then shows every window regardless of who started it.
+- **A probe returns the header but the reported reset is ~5h out when nothing
+  was running** → the probe started a window. Do not poll it.
+- **No probe returns the header** → the reset time is observable only on a real
+  request, and windows started outside this repo cannot be detected through the
+  API. Record them by hand instead.
+
+Whatever the outcome, the ping path is unaffected — it already reads the header
+on the request it was going to make anyway.
