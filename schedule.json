@@ -2,11 +2,6 @@
   "timezone": "Europe/Zagreb",
   "slots": [
     {
-      "id": "07bcmz",
-      "time": "08:00",
-      "enabled": false
-    },
-    {
       "id": "8deuko",
       "time": "19:00",
       "enabled": true
