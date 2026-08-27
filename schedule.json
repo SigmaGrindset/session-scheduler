@@ -13,12 +13,6 @@
         "enabled": true
       }
     ],
-    "weekend": [
-      {
-        "id": "p9x2vn",
-        "time": "18:30",
-        "enabled": true
-      }
-    ]
+    "weekend": []
   }
 }
