@@ -18,6 +18,11 @@
         "id": "qiv8kl",
         "time": "08:00",
         "enabled": true
+      },
+      {
+        "id": "shrguy",
+        "time": "13:30",
+        "enabled": true
       }
     ]
   }
