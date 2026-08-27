@@ -19,6 +19,7 @@ Phone browser ──> Static UI on Vercel
                     └─ POST        workflow_dispatch  ("Start window now")
 
 GitHub Actions (every 15 min) ──> scripts/check-and-ping.mjs
+                    ├─ picks today's plan (work day or weekend)
                     ├─ finds due slots (Europe/Zagreb, DST-safe)
                     ├─ claude -p "…"   (CLAUDE_CODE_OAUTH_TOKEN secret)
                     └─ commits state.json  (prevents double-firing)
@@ -27,6 +28,31 @@ GitHub Actions (every 15 min) ──> scripts/check-and-ping.mjs
 A slot fires at most once per local date, and only within 45 minutes after its
 scheduled time (GitHub cron is routinely 5–20 minutes late; that's expected
 and fine for this use case).
+
+## Work days and weekends
+
+Start times live in one of two **plans**. Monday to Friday runs the work-day
+plan, Saturday and Sunday the weekend plan, and the mapping is fixed in code —
+see [ADR 0001](docs/adr/0001-two-day-plans.md) for why it isn't per-slot day
+tags. `schedule.json`:
+
+```json
+{
+  "timezone": "Europe/Zagreb",
+  "plans": {
+    "workDay": [{ "id": "07bcmz", "time": "08:00", "enabled": true }],
+    "weekend": [{ "id": "w4k2ph", "time": "10:00", "enabled": true }]
+  }
+}
+```
+
+An empty plan means **no windows on those days**; it never falls back to the
+other plan, so leaving `weekend` empty is how you say "no sessions at the
+weekend." The same time may appear in both plans — any given date belongs to
+exactly one of them, so there is no ambiguity.
+
+In the UI both plans show side by side on a wide screen; below 880px a
+segmented control switches between them, opening on whichever applies today.
 
 **Nothing sensitive is ever committed.** The repo is public; credentials live
 only in GitHub Actions secrets and your browser's localStorage.
@@ -87,9 +113,9 @@ commits, so the every-15-minutes bot activity doesn't churn deployments.
 ### 5. Configure the UI
 
 Open the deployed page. The settings panel opens on first load: enter GitHub
-owner, repo, branch (`main`) and the PAT, then **Save and connect**. Add your
-start times; toggle or delete them any time. Reopen the panel from the icon in
-the top right.
+owner, repo, branch (`main`) and the PAT, then **Save and connect**. Add start
+times under **Work days** or **Weekend**; toggle or delete them any time.
+Reopen the panel from the icon in the top right.
 
 ## Notes
 
@@ -100,8 +126,14 @@ the top right.
 - **Health**: the pill in the header reads *healthy*, turns amber if no workflow
   run happened in 24h, and turns red and links to the run when the latest one
   failed.
-- **Day rail**: the *Today* panel plots the enabled start times, the running
-  window and the current time across 24 hours, so gaps in the day are obvious.
+- **Day rail**: the *Today* panel plots today's plan — its enabled start times,
+  the running window and the current time across 24 hours — so gaps in the day
+  are obvious. It shows today only, so on a Friday evening an empty rail ahead
+  of the now-marker means the work day's starts are done.
+- **Next start**: scans up to seven days ahead and carries a weekday prefix
+  (`Sat 10:00`) whenever the next start isn't today, which happens as soon as
+  the two plans differ. Seven days is the true bound: the schedule repeats
+  weekly, so *none set* means nothing is scheduled at all.
 - **5-hour window reset**: after a ping, the workflow makes one extra minimal
   request and reads Claude's `anthropic-ratelimit-unified-5h-reset` response
   header, recording the exact reset time of the current 5-hour usage window into
@@ -116,7 +148,11 @@ the top right.
 - **Testing locally**:
   `node scripts/check-and-ping.mjs --dry-run` (optionally with
   `SWS_FAKE_NOW=2026-07-19T06:10:00Z`) prints the firing decision without
-  pinging or writing anything.
+  pinging or writing anything. The output names the resolved plan, so pointing
+  `SWS_FAKE_NOW` at a Saturday is enough to check the weekend plan.
+  `node scripts/test-plans.mjs` checks plan resolution and the seven-day
+  next-start scan; it lifts those functions straight out of `app.js`, so it
+  needs no dependencies and no test runner.
 - **Previewing the UI**: `node scripts/serve.mjs` serves the page on
   <http://localhost:4321>. Adding `?demo` (also `?demo=empty`, `?demo=sheet`)
   renders sample data with no GitHub calls — it only works on localhost, so

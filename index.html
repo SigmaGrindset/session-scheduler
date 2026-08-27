@@ -115,29 +115,68 @@
           </div>
         </section>
 
-        <section class="panel" aria-labelledby="slots-label">
+        <section class="panel panel--plans" id="plans" aria-labelledby="slots-label">
           <div class="panel__head">
             <h2 id="slots-label">Start times</h2>
             <span class="panel__meta">Europe/Zagreb</span>
           </div>
 
-          <ul id="slot-list" class="slots"></ul>
-
-          <div id="slot-empty" class="empty" hidden>
-            <svg viewBox="0 0 48 48" aria-hidden="true">
-              <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 5" />
-              <path d="M24 16.5V24l5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <p class="empty__title">Nothing scheduled</p>
-            <p class="empty__body">Add a start time and the workflow opens a window for you at that hour. Two or three spread across the day usually covers it.</p>
+          <div class="plan-tabs" id="plan-tabs" aria-label="Which days to edit">
+            <button type="button" class="plan-tab" data-plan="workDay" aria-pressed="true">Work days</button>
+            <button type="button" class="plan-tab" data-plan="weekend" aria-pressed="false">Weekend</button>
           </div>
 
-          <form id="add-form" class="add" novalidate>
-            <label class="sr-only" for="new-time">New start time</label>
-            <input type="time" id="new-time" />
-            <button id="add-slot" class="btn btn--quiet" type="submit">Add time</button>
-          </form>
-          <p class="field-error" id="add-error" hidden></p>
+          <section class="plan" data-plan="workDay" aria-labelledby="plan-workDay-label">
+            <div class="plan__head">
+              <h3 class="plan__name" id="plan-workDay-label">Work days</h3>
+              <span class="plan__days">Mon–Fri</span>
+              <span class="plan__today" hidden>today</span>
+            </div>
+
+            <ul class="slots"></ul>
+
+            <div class="empty" hidden>
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 5" />
+                <path d="M24 16.5V24l5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <p class="empty__title">No windows on work days</p>
+              <p class="empty__body">Add a start time and the workflow opens a window for you at that hour, Monday to Friday.</p>
+            </div>
+
+            <form class="add" data-plan="workDay" novalidate>
+              <label class="sr-only" for="new-time-workDay">New work-day start time</label>
+              <input type="time" id="new-time-workDay" class="add__time" />
+              <button class="btn btn--quiet" type="submit">Add time</button>
+            </form>
+            <p class="field-error add__error" hidden></p>
+          </section>
+
+          <section class="plan" data-plan="weekend" aria-labelledby="plan-weekend-label">
+            <div class="plan__head">
+              <h3 class="plan__name" id="plan-weekend-label">Weekend</h3>
+              <span class="plan__days">Sat–Sun</span>
+              <span class="plan__today" hidden>today</span>
+            </div>
+
+            <ul class="slots"></ul>
+
+            <div class="empty" hidden>
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 5" />
+                <path d="M24 16.5V24l5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <p class="empty__title">No windows at weekends</p>
+              <p class="empty__body">Saturdays and Sundays stay quiet. Add a start time here to open windows at the weekend too.</p>
+            </div>
+
+            <form class="add" data-plan="weekend" novalidate>
+              <label class="sr-only" for="new-time-weekend">New weekend start time</label>
+              <input type="time" id="new-time-weekend" class="add__time" />
+              <button class="btn btn--quiet" type="submit">Add time</button>
+            </form>
+            <p class="field-error add__error" hidden></p>
+          </section>
         </section>
       </div>
     </div>

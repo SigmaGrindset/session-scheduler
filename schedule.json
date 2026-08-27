@@ -1,15 +1,29 @@
 {
   "timezone": "Europe/Zagreb",
-  "slots": [
-    {
-      "id": "r65sng",
-      "time": "18:30",
-      "enabled": true
-    },
-    {
-      "id": "8646b4",
-      "time": "13:00",
-      "enabled": true
-    }
-  ]
+  "plans": {
+    "workDay": [
+      {
+        "id": "8646b4",
+        "time": "13:00",
+        "enabled": true
+      },
+      {
+        "id": "r65sng",
+        "time": "18:30",
+        "enabled": true
+      }
+    ],
+    "weekend": [
+      {
+        "id": "k3m7qd",
+        "time": "13:00",
+        "enabled": true
+      },
+      {
+        "id": "p9x2vn",
+        "time": "18:30",
+        "enabled": true
+      }
+    ]
+  }
 }

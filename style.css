@@ -1107,11 +1107,121 @@ input:focus {
   to { transform: translate(-50%, 0); opacity: 1; }
 }
 
+/* ---------- plans ---------- */
+
+/* Segmented control. Only ever visible below 880px; above it both plans show
+   and this is hidden, taking it out of the accessibility tree with it. */
+.plan-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.plan-tab {
+  padding: 9px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.plan-tab:hover {
+  color: var(--text);
+}
+
+.plan-tab[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow:
+    0 1px 0 rgba(255, 244, 230, 0.05) inset,
+    0 6px 14px -10px rgba(10, 6, 2, 0.9);
+}
+
+.plan__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+/* Redundant under the segmented control, which already names the plan; it
+   returns at 880px where both plans are on screen at once. Hidden or not, it
+   still supplies the section's accessible name via aria-labelledby. */
+.plan__name {
+  display: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.plan__days {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+.plan__today {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(224, 138, 78, 0.14);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Below 880px the control shows one plan at a time. display:none also drops
+   the hidden plan out of the accessibility tree, so there is no ARIA state to
+   maintain and nothing to resync when the viewport crosses the breakpoint. */
+#plans[data-active-plan="workDay"] .plan[data-plan="weekend"],
+#plans[data-active-plan="weekend"] .plan[data-plan="workDay"] {
+  display: none;
+}
+
 /* ---------- wide screens ---------- */
 
 @media (min-width: 880px) {
   .topbar {
     padding: 26px 28px 14px;
+  }
+
+  /* Both plans on screen together, so the control has nothing left to do.
+     The show rule matches [data-plan] to hold the same specificity as the
+     hide rules above and win on source order. */
+  .plan-tabs {
+    display: none;
+  }
+
+  #plans[data-active-plan] .plan[data-plan] {
+    display: block;
+  }
+
+  .plan__name {
+    display: block;
+  }
+
+  .plan + .plan {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
   }
 
   main {

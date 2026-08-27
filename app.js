@@ -19,6 +19,7 @@ let cfg = loadCfg();
 let schedule = null;
 let scheduleSha = null;
 let windowResetsAt = null; // ISO reset time of the current 5-hour window, or null
+let activeTab = null; // plan shown by the segmented control below 880px
 
 function loadCfg() {
   try {
@@ -162,25 +163,65 @@ const toMinutes = (hhmm) => {
   return h * 60 + m;
 };
 
-// Minutes from now until the next occurrence of a local HH:MM.
-function minutesUntil(hhmm, nowMin) {
-  const diff = toMinutes(hhmm) - nowMin;
-  return diff > 0 ? diff : diff + DAY_MIN;
+// ---------- Plans ----------
+
+const PLAN_KEYS = ["workDay", "weekend"];
+const PLAN_LABELS = { workDay: "work days", weekend: "weekend" };
+
+// Saturday and Sunday run the weekend plan, Monday to Friday the work-day one.
+// Fixed on purpose: docs/adr/0001-two-day-plans.md. Reading the local calendar
+// date as UTC midnight makes getUTCDay() exact, with no offset to reason about.
+function planKeyFor(localDate) {
+  const dow = new Date(`${localDate}T00:00:00Z`).getUTCDay(); // 0 Sun ... 6 Sat
+  return dow === 0 || dow === 6 ? "weekend" : "workDay";
 }
 
-function enabledSlots() {
-  return schedule.slots
-    .filter((s) => s.enabled)
-    .map((s) => s.time)
-    .sort();
+function addDays(localDate, n) {
+  const d = new Date(`${localDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
-function nextSlotTime(nowMin) {
-  const enabled = enabledSlots();
-  if (enabled.length === 0) return null;
-  return enabled.reduce((best, t) =>
-    minutesUntil(t, nowMin) < minutesUntil(best, nowMin) ? t : best,
-  );
+function dayLabel(localDate) {
+  return new Date(`${localDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    timeZone: "UTC",
+  });
+}
+
+// The slots of one plan. An absent or empty plan means no windows on those
+// days; it never falls back to the other plan.
+function planSlots(key) {
+  return schedule?.plans?.[key] || [];
+}
+
+// When a plan's HH:MM next comes round, scanning up to seven days out. Seven is
+// the true bound: the schedule repeats weekly, so anything not found inside a
+// week does not exist at all, which makes "none set" a fact rather than a
+// timeout.
+function nextOccurrence(key, time, today, nowMin) {
+  for (let offset = 0; offset <= 7; offset++) {
+    const date = addDays(today, offset);
+    if (planKeyFor(date) !== key) continue;
+    const minutesAway = offset * DAY_MIN + toMinutes(time) - nowMin;
+    if (minutesAway > 0) return { date, offset, minutesAway };
+  }
+  return null;
+}
+
+// The soonest enabled slot across both plans, or null when none is enabled.
+function nextStart(today, nowMin) {
+  let best = null;
+  for (const key of PLAN_KEYS) {
+    for (const slot of planSlots(key)) {
+      if (!slot.enabled) continue;
+      const occ = nextOccurrence(key, slot.time, today, nowMin);
+      if (occ && (!best || occ.minutesAway < best.minutesAway)) {
+        best = { ...occ, time: slot.time, plan: key };
+      }
+    }
+  }
+  return best;
 }
 
 // ---------- Rendering ----------
@@ -224,11 +265,16 @@ function renderWindow() {
   );
 }
 
-// A 24-hour rail: where the slots sit, where the active window sits, where now is.
+// A 24-hour rail: where today's plan sits, where the active window sits, where
+// now is. It is labelled "Today", so it shows today's plan and nothing else --
+// on a Friday evening an empty rail ahead of the now-marker is the correct
+// answer rather than a missing one.
 function renderTrack() {
-  const { minutes: nowMin } = zagrebParts(new Date());
+  const { date: today, minutes: nowMin } = zagrebParts(new Date());
   const marks = $("track-marks");
-  const next = schedule ? nextSlotTime(nowMin) : null;
+  const next = schedule ? nextStart(today, nowMin) : null;
+  // Only a start time later today can be the one highlighted on a Today rail.
+  const nextToday = next && next.offset === 0 ? next.time : null;
 
   $("now-label").textContent = `${String(Math.floor(nowMin / 60)).padStart(2, "0")}:${String(nowMin % 60).padStart(2, "0")}`;
   $("track-now").hidden = false;
@@ -260,17 +306,21 @@ function renderTrack() {
   marks.innerHTML = "";
   if (!schedule) return;
 
+  const todayKey = planKeyFor(today);
+  $("day-label").textContent = `Today \u00b7 ${PLAN_LABELS[todayKey]}`;
+
   $("track").setAttribute(
     "aria-label",
-    `Day rail. Now ${$("now-label").textContent}${next ? `, next start ${next}` : ", no start times enabled"}.`,
+    `Day rail for ${PLAN_LABELS[todayKey]}. Now ${$("now-label").textContent}` +
+      `${nextToday ? `, next start ${nextToday}` : ", nothing left today"}.`,
   );
 
-  for (const slot of schedule.slots) {
+  for (const slot of planSlots(todayKey)) {
     const x = toMinutes(slot.time) / DAY_MIN;
     const mark = document.createElement("div");
     mark.className = "track__mark";
     if (!slot.enabled) mark.classList.add("track__mark--off");
-    if (slot.enabled && slot.time === next) {
+    if (slot.enabled && slot.time === nextToday) {
       mark.classList.add("track__mark--next");
       if (x < 0.06) mark.classList.add("track__mark--edge-start");
       if (x > 0.94) mark.classList.add("track__mark--edge-end");
@@ -286,88 +336,122 @@ function renderTrack() {
 }
 
 function renderSkeletonSlots() {
-  const list = $("slot-list");
-  list.innerHTML = "";
-  $("slot-empty").hidden = true;
-  for (let i = 0; i < 3; i++) {
-    const li = document.createElement("li");
-    li.className = "slot--skel";
-    list.appendChild(li);
+  for (const key of PLAN_KEYS) {
+    const section = document.querySelector(`.plan[data-plan="${key}"]`);
+    const list = section.querySelector(".slots");
+    list.innerHTML = "";
+    section.querySelector(".empty").hidden = true;
+    for (let i = 0; i < 3; i++) {
+      const li = document.createElement("li");
+      li.className = "slot--skel";
+      list.appendChild(li);
+    }
   }
 }
 
+// Below 880px one plan shows at a time and the segmented control picks which.
+// At 880px and up CSS reveals both and hides the control, so this value is
+// simply ignored -- no media query in JS, nothing to resync on resize.
+function setActiveTab(key) {
+  activeTab = key;
+  $("plans").dataset.activePlan = key;
+  for (const btn of document.querySelectorAll(".plan-tab")) {
+    btn.setAttribute("aria-pressed", String(btn.dataset.plan === key));
+  }
+}
+
+// A weekend slot seen on a Tuesday is not "in 20h" -- it is however long until
+// Saturday. Every countdown goes through nextOccurrence for that reason.
+function relLabel(key, slot, today, nowMin) {
+  if (!slot.enabled) return "off";
+  const occ = nextOccurrence(key, slot.time, today, nowMin);
+  return occ ? `in ${fmtShort(occ.minutesAway * 60000)}` : "\u2014";
+}
+
+function slotRow(key, slot, today, nowMin) {
+  const li = document.createElement("li");
+  li.className = "slot" + (slot.enabled ? "" : " slot--off");
+
+  const row = document.createElement("div");
+  row.className = "slot__row";
+
+  const time = document.createElement("span");
+  time.className = "slot__time";
+  time.textContent = slot.time;
+
+  const rel = document.createElement("span");
+  rel.className = "slot__rel";
+  rel.dataset.plan = key;
+  rel.dataset.time = slot.time;
+  rel.textContent = relLabel(key, slot, today, nowMin);
+
+  const sw = document.createElement("label");
+  sw.className = "switch";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = slot.enabled;
+  cb.setAttribute("aria-label", `${slot.time} on ${PLAN_LABELS[key]} enabled`);
+  cb.addEventListener("change", () => toggleSlot(key, slot.id, cb.checked));
+  const pill = document.createElement("span");
+  pill.className = "track-pill";
+  sw.append(cb, pill);
+
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "icon-btn slot__del";
+  del.setAttribute("aria-label", `Delete ${slot.time} from ${PLAN_LABELS[key]}`);
+  del.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  del.addEventListener("click", () => {
+    li.classList.add("is-confirming");
+    li.querySelector(".slot__confirm .btn--danger").focus();
+  });
+
+  row.append(time, rel, sw, del);
+
+  // Inline confirm instead of a browser dialog.
+  const confirm = document.createElement("div");
+  confirm.className = "slot__confirm";
+  const question = document.createElement("p");
+  question.innerHTML = `Delete <b>${slot.time}</b>?`;
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "btn btn--text";
+  cancel.textContent = "Keep";
+  cancel.addEventListener("click", () => {
+    li.classList.remove("is-confirming");
+    del.focus();
+  });
+
+  const confirmDel = document.createElement("button");
+  confirmDel.type = "button";
+  confirmDel.className = "btn btn--danger";
+  confirmDel.textContent = "Delete";
+  confirmDel.addEventListener("click", () => deleteSlot(key, slot.id, slot.time));
+
+  confirm.append(question, cancel, confirmDel);
+  li.append(row, confirm);
+  return li;
+}
+
 function renderSlots() {
-  const list = $("slot-list");
-  const { minutes: nowMin } = zagrebParts(new Date());
-  const slots = [...schedule.slots].sort((a, b) => a.time.localeCompare(b.time));
+  const { date: today, minutes: nowMin } = zagrebParts(new Date());
+  const todayKey = planKeyFor(today);
 
-  list.innerHTML = "";
-  $("slot-empty").hidden = slots.length > 0;
+  setActiveTab(activeTab || todayKey);
 
-  for (const slot of slots) {
-    const li = document.createElement("li");
-    li.className = "slot" + (slot.enabled ? "" : " slot--off");
+  for (const key of PLAN_KEYS) {
+    const section = document.querySelector(`.plan[data-plan="${key}"]`);
+    const list = section.querySelector(".slots");
+    const slots = [...planSlots(key)].sort((a, b) => a.time.localeCompare(b.time));
 
-    const row = document.createElement("div");
-    row.className = "slot__row";
+    section.classList.toggle("plan--today", key === todayKey);
+    section.querySelector(".plan__today").hidden = key !== todayKey;
+    section.querySelector(".empty").hidden = slots.length > 0;
 
-    const time = document.createElement("span");
-    time.className = "slot__time";
-    time.textContent = slot.time;
-
-    const rel = document.createElement("span");
-    rel.className = "slot__rel";
-    rel.dataset.time = slot.time;
-    rel.textContent = slot.enabled ? `in ${fmtShort(minutesUntil(slot.time, nowMin) * 60000)}` : "off";
-
-    const sw = document.createElement("label");
-    sw.className = "switch";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = slot.enabled;
-    cb.setAttribute("aria-label", `${slot.time} enabled`);
-    cb.addEventListener("change", () => toggleSlot(slot.id, cb.checked));
-    const pill = document.createElement("span");
-    pill.className = "track-pill";
-    sw.append(cb, pill);
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "icon-btn slot__del";
-    del.setAttribute("aria-label", `Delete ${slot.time}`);
-    del.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
-    del.addEventListener("click", () => {
-      li.classList.add("is-confirming");
-      li.querySelector(".slot__confirm .btn--danger").focus();
-    });
-
-    row.append(time, rel, sw, del);
-
-    // Inline confirm instead of a browser dialog.
-    const confirm = document.createElement("div");
-    confirm.className = "slot__confirm";
-    const question = document.createElement("p");
-    question.innerHTML = `Delete <b>${slot.time}</b>?`;
-
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.className = "btn btn--text";
-    cancel.textContent = "Keep";
-    cancel.addEventListener("click", () => {
-      li.classList.remove("is-confirming");
-      del.focus();
-    });
-
-    const confirmDel = document.createElement("button");
-    confirmDel.type = "button";
-    confirmDel.className = "btn btn--danger";
-    confirmDel.textContent = "Delete";
-    confirmDel.addEventListener("click", () => deleteSlot(slot.id, slot.time));
-
-    confirm.append(question, cancel, confirmDel);
-    li.append(row, confirm);
-    list.appendChild(li);
+    list.innerHTML = "";
+    for (const slot of slots) list.appendChild(slotRow(key, slot, today, nowMin));
   }
 
   renderNextSlot();
@@ -376,15 +460,19 @@ function renderSlots() {
 
 function renderNextSlot() {
   if (!schedule) return;
-  const { minutes: nowMin } = zagrebParts(new Date());
-  const next = nextSlotTime(nowMin);
+  const { date: today, minutes: nowMin } = zagrebParts(new Date());
+  const next = nextStart(today, nowMin);
+
+  // A bare "10:00" is ambiguous once it can come from the other plan, so
+  // anything that is not today carries its weekday.
   $("stat-next").textContent = next
-    ? `${next} · in ${fmtShort(minutesUntil(next, nowMin) * 60000)}`
+    ? `${next.offset === 0 ? "" : dayLabel(next.date) + " "}${next.time} \u00b7 in ${fmtShort(next.minutesAway * 60000)}`
     : "none set";
 
   for (const el of document.querySelectorAll(".slot__rel[data-time]")) {
     if (el.textContent === "off") continue;
-    el.textContent = `in ${fmtShort(minutesUntil(el.dataset.time, nowMin) * 60000)}`;
+    const occ = nextOccurrence(el.dataset.plan, el.dataset.time, today, nowMin);
+    el.textContent = occ ? `in ${fmtShort(occ.minutesAway * 60000)}` : "\u2014";
   }
 }
 
@@ -433,26 +521,28 @@ async function refreshStatus() {
 
 // ---------- Actions ----------
 
-async function toggleSlot(id, enabled) {
-  const slot = schedule.slots.find((s) => s.id === id);
+async function toggleSlot(key, id, enabled) {
+  const slot = planSlots(key).find((s) => s.id === id);
   if (!slot) return;
   slot.enabled = enabled;
   renderSlots();
   try {
-    await saveSchedule(`schedule: ${enabled ? "enable" : "disable"} ${slot.time}`);
-    toast(`${slot.time} ${enabled ? "enabled" : "disabled"}`);
+    await saveSchedule(
+      `schedule: ${enabled ? "enable" : "disable"} ${slot.time} on ${PLAN_LABELS[key]}`,
+    );
+    toast(`${slot.time} ${enabled ? "enabled" : "disabled"} on ${PLAN_LABELS[key]}`);
   } catch (e) {
     toast(`Could not save: ${e.message}`, "error");
     init();
   }
 }
 
-async function deleteSlot(id, time) {
-  schedule.slots = schedule.slots.filter((s) => s.id !== id);
+async function deleteSlot(key, id, time) {
+  schedule.plans[key] = planSlots(key).filter((s) => s.id !== id);
   renderSlots();
   try {
-    await saveSchedule(`schedule: remove ${time}`);
-    toast(`${time} removed`);
+    await saveSchedule(`schedule: remove ${time} from ${PLAN_LABELS[key]}`);
+    toast(`${time} removed from ${PLAN_LABELS[key]}`);
   } catch (e) {
     toast(`Could not save: ${e.message}`, "error");
     init();
@@ -461,8 +551,10 @@ async function deleteSlot(id, time) {
 
 async function addSlot(event) {
   event.preventDefault();
-  const input = $("new-time");
-  const err = $("add-error");
+  const form = event.target;
+  const key = form.dataset.plan;
+  const input = form.querySelector(".add__time");
+  const err = form.closest(".plan").querySelector(".add__error");
   const time = input.value;
 
   err.hidden = true;
@@ -472,19 +564,23 @@ async function addSlot(event) {
     input.focus();
     return;
   }
-  if (schedule.slots.some((s) => s.time === time)) {
-    err.textContent = `${time} is already scheduled.`;
+  // Scoped to this plan: the same time legitimately exists in both.
+  if (planSlots(key).some((s) => s.time === time)) {
+    err.textContent = `${time} is already set for ${PLAN_LABELS[key]}.`;
     err.hidden = false;
     input.focus();
     return;
   }
 
-  schedule.slots.push({ id: Math.random().toString(36).slice(2, 8), time, enabled: true });
+  schedule.plans[key] = [
+    ...planSlots(key),
+    { id: Math.random().toString(36).slice(2, 8), time, enabled: true },
+  ];
   renderSlots();
   input.value = "";
   try {
-    await saveSchedule(`schedule: add ${time}`);
-    toast(`${time} added`);
+    await saveSchedule(`schedule: add ${time} to ${PLAN_LABELS[key]}`);
+    toast(`${time} added to ${PLAN_LABELS[key]}`);
   } catch (e) {
     toast(`Could not save: ${e.message}`, "error");
     init();
@@ -592,14 +688,20 @@ async function init() {
     const empty = DEMO_STATE === "empty";
     schedule = {
       timezone: TZ,
-      slots: empty
-        ? []
-        : [
-            { id: "a1", time: "06:45", enabled: true },
-            { id: "b2", time: "12:15", enabled: true },
-            { id: "c3", time: "17:20", enabled: false },
-            { id: "d4", time: "22:40", enabled: true },
-          ],
+      plans: empty
+        ? { workDay: [], weekend: [] }
+        : {
+            workDay: [
+              { id: "a1", time: "06:45", enabled: true },
+              { id: "b2", time: "12:15", enabled: true },
+              { id: "c3", time: "17:20", enabled: false },
+              { id: "d4", time: "22:40", enabled: true },
+            ],
+            weekend: [
+              { id: "e5", time: "09:30", enabled: true },
+              { id: "f6", time: "16:00", enabled: true },
+            ],
+          },
     };
     windowResetsAt = empty ? null : new Date(Date.now() + 2 * 3600e3 + 47 * 60e3).toISOString();
     setView("ready");
@@ -647,7 +749,13 @@ $("settings-btn").addEventListener("click", openSheet);
 $("close-setup").addEventListener("click", closeSheet);
 $("sheet-backdrop").addEventListener("click", closeSheet);
 $("setup-form").addEventListener("submit", saveCfg);
-$("add-form").addEventListener("submit", addSlot);
+$("plans").addEventListener("submit", (e) => {
+  if (e.target.classList.contains("add")) addSlot(e);
+});
+$("plan-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".plan-tab");
+  if (btn) setActiveTab(btn.dataset.plan);
+});
 $("start-now").addEventListener("click", startNow);
 $("fault-retry").addEventListener("click", init);
 $("fault-settings").addEventListener("click", openSheet);

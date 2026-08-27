@@ -59,8 +59,26 @@ const toMinutes = (hhmm) => {
   return h * 60 + m;
 };
 
+// Saturday and Sunday run the weekend plan, Monday to Friday the work-day one.
+// The mapping is fixed here on purpose: docs/adr/0001-two-day-plans.md.
+// Parsing the local calendar date as UTC midnight makes getUTCDay() exact,
+// with no timezone or DST offset to reason about.
+function planKeyFor(localDate) {
+  const dow = new Date(`${localDate}T00:00:00Z`).getUTCDay(); // 0 Sun ... 6 Sat
+  return dow === 0 || dow === 6 ? "weekend" : "workDay";
+}
+
+// The single place a date turns into the slots that apply to it. Date-specific
+// overrides (holidays, "skip tomorrow") belong here and nowhere else.
+// An absent or empty plan means no windows that day; it never falls back to
+// the other plan.
+function slotsFor(localDate) {
+  if (schedule.plans) return schedule.plans[planKeyFor(localDate)] || [];
+  return schedule.slots || []; // pre-plans format: one list, applies every day
+}
+
 const fired = state.fired || {};
-const dueSlots = (schedule.slots || []).filter((slot) => {
+const dueSlots = slotsFor(today).filter((slot) => {
   if (!slot.enabled) return false;
   const slotMin = toMinutes(slot.time);
   const late = nowMin - slotMin;
@@ -70,6 +88,7 @@ const dueSlots = (schedule.slots || []).filter((slot) => {
 console.log(
   `now=${now.toISOString()} local=${today} ${String(Math.floor(nowMin / 60)).padStart(2, "0")}:${String(nowMin % 60).padStart(2, "0")} (${tz})` +
     ` event=${process.env.GITHUB_EVENT_NAME || "local"}` +
+    ` plan=${planKeyFor(today)}` +
     ` due=[${dueSlots.map((s) => s.time).join(", ")}]`,
 );
 
