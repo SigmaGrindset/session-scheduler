@@ -13,6 +13,12 @@
         "enabled": true
       }
     ],
-    "weekend": []
+    "weekend": [
+      {
+        "id": "qiv8kl",
+        "time": "08:00",
+        "enabled": true
+      }
+    ]
   }
 }
