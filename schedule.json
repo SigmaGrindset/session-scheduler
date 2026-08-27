@@ -13,12 +13,6 @@
         "enabled": true
       }
     ],
-    "weekend": [
-      {
-        "id": "ls9f4u",
-        "time": "20:00",
-        "enabled": false
-      }
-    ]
+    "weekend": []
   }
 }
