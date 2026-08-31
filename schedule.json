@@ -11,6 +11,11 @@
         "id": "r65sng",
         "time": "18:30",
         "enabled": true
+      },
+      {
+        "id": "ejepy8",
+        "time": "07:00",
+        "enabled": true
       }
     ],
     "weekend": [
