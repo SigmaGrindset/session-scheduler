@@ -6,6 +6,10 @@ const WORKFLOW_FILE = "ping.yml";
 const WINDOW_MS = 5 * 60 * 60 * 1000; // a usage window runs 5 hours
 const DAY_MIN = 24 * 60;
 
+// A slot can still fire this long after its time; must match WINDOW_MIN in
+// scripts/check-and-ping.mjs. Past it with no ping, the slot was missed.
+const FIRE_WINDOW_MIN = 120;
+
 const $ = (id) => document.getElementById(id);
 
 // Design preview: `?demo` on localhost renders sample data with no GitHub calls.
@@ -217,6 +221,34 @@ function nextStart(today, nowMin) {
       if (!slot.enabled) continue;
       const occ = nextOccurrence(key, slot.time, today, nowMin);
       if (occ && (!best || occ.minutesAway < best.minutesAway)) {
+        best = { ...occ, time: slot.time, plan: key };
+      }
+    }
+  }
+  return best;
+}
+
+// The mirror of nextOccurrence: when a plan's HH:MM last came round, scanning
+// up to seven days back. Same weekly bound, so null is a fact, not a timeout.
+function prevOccurrence(key, time, today, nowMin) {
+  for (let offset = 0; offset <= 7; offset++) {
+    const date = addDays(today, -offset);
+    if (planKeyFor(date) !== key) continue;
+    const minutesAgo = nowMin + offset * DAY_MIN - toMinutes(time);
+    if (minutesAgo >= 0) return { date, offset, minutesAgo };
+  }
+  return null;
+}
+
+// The most recently passed enabled slot across both plans, or null when none is
+// enabled.
+function prevStart(today, nowMin) {
+  let best = null;
+  for (const key of PLAN_KEYS) {
+    for (const slot of planSlots(key)) {
+      if (!slot.enabled) continue;
+      const occ = prevOccurrence(key, slot.time, today, nowMin);
+      if (occ && (!best || occ.minutesAgo < best.minutesAgo)) {
         best = { ...occ, time: slot.time, plan: key };
       }
     }
@@ -476,6 +508,20 @@ function renderNextSlot() {
   }
 }
 
+// The most recent enabled slot whose fire window has closed with no ping at or
+// after it. Derived live from the schedule and lastPing rather than read out of
+// state.missed, so it also catches the case the workflow can never record: a
+// slot with no run after it to notice the miss.
+function lastMissedSlot(state) {
+  if (!schedule || !state) return null;
+  const { date: today, minutes: nowMin } = zagrebParts(new Date());
+  const last = prevStart(today, nowMin);
+  if (!last || last.minutesAgo < FIRE_WINDOW_MIN) return null;
+  if (!state.lastPing?.at) return last;
+  const pingMinutesAgo = (Date.now() - new Date(state.lastPing.at).getTime()) / 60000;
+  return pingMinutesAgo > last.minutesAgo ? last : null;
+}
+
 function setHealth(state, text, href) {
   const pill = $("health");
   pill.dataset.state = state;
@@ -486,8 +532,10 @@ function setHealth(state, text, href) {
 
 async function refreshStatus() {
   if ($("health").dataset.state === "unknown") setHealth("unknown", "checking");
+
+  let state = null;
   try {
-    const { data: state } = await fetchFile("state.json");
+    ({ data: state } = await fetchFile("state.json"));
     $("stat-ping").textContent = state.lastPing
       ? `${fmtDayTime(state.lastPing.at)} · ${state.lastPing.trigger}`
       : "never";
@@ -506,14 +554,20 @@ async function refreshStatus() {
       setHealth("stale", "no runs yet");
       return;
     }
-    const ageH = (Date.now() - new Date(run.created_at)) / 3.6e6;
     if (run.conclusion === "failure") {
       setHealth("fail", "run failed", run.html_url);
-    } else if (ageH > 24) {
-      setHealth("stale", "cron stale");
-    } else {
-      setHealth("ok", "healthy");
+      return;
     }
+    // Health is about slots firing, not about the workflow running. A green run
+    // that pinged nothing is the exact failure this pill has to surface, so the
+    // last passed slot is checked before the run's own age.
+    const missed = lastMissedSlot(state);
+    if (missed) {
+      setHealth("fail", `missed ${missed.time}`, run.html_url);
+      return;
+    }
+    const stale = (Date.now() - new Date(run.created_at)) / 3.6e6 > 24;
+    setHealth(stale ? "stale" : "ok", stale ? "cron stale" : "healthy");
   } catch {
     setHealth("fail", "no connection");
   }

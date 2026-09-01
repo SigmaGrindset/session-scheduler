@@ -21,7 +21,8 @@ const api = new Function(
   "getSchedule",
   `const schedule = getSchedule();
    ${block}
-   return { planKeyFor, addDays, dayLabel, planSlots, nextOccurrence, nextStart };`,
+   return { planKeyFor, addDays, dayLabel, planSlots, nextOccurrence, nextStart,
+            prevOccurrence, prevStart };`,
 );
 
 const load = (s) => {
@@ -138,6 +139,55 @@ function check(name, actual, expected) {
   });
   const n = p.nextStart("2026-08-28", toMinutes("09:00")); // Friday after 08:00
   check("shared time -> tomorrow's weekend one", [n.plan, n.offset], ["weekend", 1]);
+}
+
+// ---- prevStart: the slot the health check measures the last ping against ----
+{
+  const p = load({
+    plans: {
+      workDay: [
+        { id: "a", time: "13:00", enabled: true },
+        { id: "b", time: "18:30", enabled: true },
+      ],
+      weekend: [
+        { id: "c", time: "08:00", enabled: true },
+        { id: "d", time: "13:30", enabled: true },
+        { id: "e", time: "19:00", enabled: true },
+      ],
+    },
+  });
+
+  // Sunday 15:00: the 13:30 slot passed 90 minutes ago.
+  const a = p.prevStart("2026-08-30", toMinutes("15:00"));
+  check("Sun 15:00 -> 13:30, 90m ago", [a.time, a.offset, a.minutesAgo], ["13:30", 0, 90]);
+
+  // Sunday 07:00: nothing has passed today, so it reaches back to Saturday.
+  const b = p.prevStart("2026-08-30", toMinutes("07:00"));
+  check("Sun 07:00 -> Sat 19:00", [b.time, b.offset, b.date], ["19:00", 1, "2026-08-29"]);
+  check("Sun 07:00 -> 12h ago", b.minutesAgo, 720);
+
+  // Monday 09:00: the work-day slots are still ahead, so the last one that
+  // passed belongs to the weekend plan. A miss must not be attributed to today.
+  const c = p.prevStart("2026-08-31", toMinutes("09:00"));
+  check("Mon 09:00 -> Sun 19:00", [c.time, c.plan, c.date], ["19:00", "weekend", "2026-08-30"]);
+}
+
+// ---- prevStart mirrors nextStart on the empty and disabled cases ----
+{
+  const p = load({
+    plans: {
+      workDay: [{ id: "a", time: "08:00", enabled: false }],
+      weekend: [{ id: "b", time: "10:00", enabled: false }],
+    },
+  });
+  check("all disabled -> nothing passed", p.prevStart("2026-08-30", 600), null);
+}
+
+{
+  const p = load({ plans: { workDay: [{ id: "a", time: "08:00", enabled: true }] } });
+  // Sunday with no weekend plan: the last slot that passed is Friday's.
+  const n = p.prevStart("2026-08-30", toMinutes("12:00"));
+  check("Sun, no weekend plan -> Fri 08:00", [n.offset, n.date], [2, "2026-08-28"]);
 }
 
 console.log(`${pass} passed, ${fail.length} failed`);
