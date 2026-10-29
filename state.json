@@ -13,12 +13,6 @@
   },
   "missed": [
     {
-      "date": "2026-10-12",
-      "time": "13:00",
-      "plan": "workDay",
-      "noticedAt": "2026-10-12T17:00:57.467Z"
-    },
-    {
       "date": "2026-10-13",
       "time": "07:00",
       "plan": "workDay",
@@ -131,6 +125,12 @@
       "time": "18:30",
       "plan": "workDay",
       "noticedAt": "2026-10-28T21:43:11.250Z"
+    },
+    {
+      "date": "2026-10-29",
+      "time": "13:00",
+      "plan": "workDay",
+      "noticedAt": "2026-10-29T14:16:56.415Z"
     }
   ]
 }
