@@ -11,18 +11,6 @@
   },
   "missed": [
     {
-      "date": "2026-11-08",
-      "time": "19:00",
-      "plan": "weekend",
-      "noticedAt": "2026-11-08T20:09:49.051Z"
-    },
-    {
-      "date": "2026-11-09",
-      "time": "07:00",
-      "plan": "workDay",
-      "noticedAt": "2026-11-09T11:12:21.676Z"
-    },
-    {
       "date": "2026-11-09",
       "time": "13:00",
       "plan": "workDay",
@@ -129,6 +117,18 @@
       "time": "07:00",
       "plan": "workDay",
       "noticedAt": "2026-11-17T11:57:30.766Z"
+    },
+    {
+      "date": "2026-11-17",
+      "time": "13:00",
+      "plan": "workDay",
+      "noticedAt": "2026-11-17T20:35:36.219Z"
+    },
+    {
+      "date": "2026-11-17",
+      "time": "18:30",
+      "plan": "workDay",
+      "noticedAt": "2026-11-17T20:35:36.219Z"
     }
   ]
 }
